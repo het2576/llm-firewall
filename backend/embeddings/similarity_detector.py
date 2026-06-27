@@ -5,14 +5,14 @@ Compares incoming prompts against a dataset of known attack vectors.
 import os
 import json
 from dataclasses import dataclass
-import numpy as np
-
 # Use sentence_transformers
 try:
+    import numpy as np
     from sentence_transformers import SentenceTransformer
     from sklearn.metrics.pairwise import cosine_similarity
 except ImportError:
     print("Warning: sentence_transformers or scikit-learn not installed. Similarity detection disabled.")
+    np = None
     SentenceTransformer = None
     cosine_similarity = None
 
