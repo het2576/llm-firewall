@@ -1,5 +1,14 @@
 """
 firewall.py — Main orchestrator that runs the full pipeline for every incoming prompt.
+
+Sanitize flow:
+  1. Score the prompt with all detectors.
+  2. If decision == "block" → reject immediately.
+  3. Otherwise, ALWAYS run the input sanitizer.
+     - If the sanitizer actually changed the prompt (removed XML tags, invisible chars,
+       base64 payloads, etc.) the decision is promoted to "sanitize" so the cleaned
+       version is passed to the LLM and the dashboard reflects the count.
+     - If the sanitizer made no changes, the original decision (allow/warn) is kept.
 """
 from dataclasses import dataclass
 from typing import Optional
@@ -38,45 +47,62 @@ class LLMSecurityFirewall:
         self.classifier = AISecurityClassifier()
 
     async def process(self, prompt: str, user_id: Optional[str], db_session) -> FirewallResult:
-        """Process a prompt through the entire firewall pipeline."""
-        
-        # Step 1: Normalize basic text
+        """Process a prompt through the full firewall pipeline."""
+
         clean_prompt = prompt.strip()
-        
-        # Step 2: Run ThreatScorer
+
+        # ── Step 1: Score ────────────────────────────────────────────────────
         assessment = await self.scorer.assess(clean_prompt, self.classifier)
-        
-        # Step 3: Determine final prompt based on decision
-        final_prompt = clean_prompt
+
+        # ── Step 2: Route based on score ─────────────────────────────────────
+        final_prompt: Optional[str] = clean_prompt
         blocked = False
-        sanitization_result = None
-        
-        if assessment.decision == "block":
+        sanitization_result: Optional[SanitizationResult] = None
+        decision = assessment.decision
+
+        if decision == "block":
+            # Hard block — never pass to LLM
             final_prompt = None
             blocked = True
-        elif assessment.decision == "sanitize":
+
+        else:
+            # Always attempt sanitization on non-blocked prompts.
+            # This catches obfuscated payloads (invisible chars, XML injection,
+            # base64 encoded instructions, HTML comments, oversized prompts)
+            # that the score-based routing might classify as "warn" or "allow"
+            # but that still contain removable malicious structure.
             sanitization_result = self.sanitizer.sanitize(clean_prompt)
+
             if sanitization_result.was_modified:
                 final_prompt = sanitization_result.sanitized_prompt
-        # For "allow" and "warn", final_prompt stays as original clean_prompt
+                # Promote allow/warn → sanitize so the dashboard count increases
+                # and the chat UI shows the "Sanitized" badge.
+                if decision in ("allow", "warn"):
+                    decision = "sanitize"
+            else:
+                # Nothing to clean — keep original decision
+                sanitization_result = None
 
-        # Step 4: Log to DB
+        # Sync the assessment decision so the DB record matches what we return
+        assessment.decision = decision
+
+        # ── Step 3: Log to DB ────────────────────────────────────────────────
         logger = EventLogger(db_session)
         request_id = await logger.log_request(
             prompt=clean_prompt,
             threat_assessment=assessment,
             sanitization_result=sanitization_result,
-            response=None, # Response will be filled later by the API route
-            user_id=user_id
+            response=None,
+            user_id=user_id,
         )
 
         return FirewallResult(
             original_prompt=clean_prompt,
             final_prompt=final_prompt,
             blocked=blocked,
-            decision=assessment.decision,
+            decision=decision,
             threat_score=assessment.threat_score,
             threat_assessment=assessment,
             sanitization_result=sanitization_result,
-            request_id=request_id
+            request_id=request_id,
         )

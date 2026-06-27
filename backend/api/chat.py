@@ -84,6 +84,15 @@ async def chat_endpoint(req: ChatRequest, db: AsyncSession = Depends(get_db)):
         # We don't fail the request if logging the response fails
         print(f"Failed to update request with response: {e}")
         
+    # Build a descriptive warning/info message
+    warning_message = None
+    if result.decision == "warn":
+        warning_message = "⚠️ This prompt triggered security alerts but was allowed through."
+    elif result.decision == "sanitize":
+        changes = result.sanitization_result.changes_made if result.sanitization_result else []
+        changes_str = "; ".join(changes) if changes else "malicious content removed"
+        warning_message = f"🔧 Prompt sanitized before processing — {changes_str}."
+
     return ChatResponse(
         response=response_text,
         blocked=False,
@@ -91,9 +100,7 @@ async def chat_endpoint(req: ChatRequest, db: AsyncSession = Depends(get_db)):
         threat_score=result.threat_score,
         request_id=result.request_id,
         triggered_detectors=result.threat_assessment.triggered_detectors,
-        warning_message="⚠️ Warning: This prompt triggered security alerts but was allowed through." if result.decision == "warn" else (
-            "🔧 This prompt was sanitized before processing." if result.decision == "sanitize" else None
-        )
+        warning_message=warning_message,
     )
 
 @router.post("/analyze")

@@ -88,9 +88,14 @@ class Request(Base):
     )
 
     def to_dict(self) -> dict:
+        import datetime as _dt
+        ts = self.timestamp
+        if ts and ts.tzinfo is None:
+            # SQLite returns naive datetimes; treat as UTC
+            ts = ts.replace(tzinfo=_dt.timezone.utc)
         return {
             "id": str(self.id),
-            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+            "timestamp": ts.isoformat() if ts else None,
             "user_id": self.user_id,
             "prompt": self.prompt,
             "sanitized_prompt": self.sanitized_prompt,

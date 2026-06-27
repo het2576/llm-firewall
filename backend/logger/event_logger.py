@@ -118,43 +118,48 @@ class EventLogger:
         }
 
     async def get_analytics(self, days: int = 7) -> Dict[str, Any]:
+        IST = datetime.timezone(datetime.timedelta(hours=5, minutes=30))
         cutoff_date = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=days)
-        
-        # We'll fetch all requests within the time frame to do python-side aggregation for simplicity,
-        # but in production, we should use SQL GROUP BY for performance.
+
         stmt = select(Request).where(Request.timestamp >= cutoff_date)
         result = await self.db.execute(stmt)
         requests = result.scalars().all()
-        
+
         total = len(requests)
         blocked = sum(1 for r in requests if r.decision == "block")
         sanitized = sum(1 for r in requests if r.decision == "sanitize")
         warned = sum(1 for r in requests if r.decision == "warn")
         safe = sum(1 for r in requests if r.decision == "allow")
-        
+
         avg_score = sum(r.threat_score for r in requests) / total if total > 0 else 0
-        
-        # Aggregations
-        by_type = {}
-        by_hour = {}
-        by_day = {}
-        
+
+        by_type: Dict[str, int] = {}
+        by_hour: Dict[str, int] = {}
+        by_day: Dict[str, int] = {}
+
         for r in requests:
-            # Day aggregation
-            day_str = r.timestamp.strftime("%Y-%m-%d")
-            by_day[day_str] = by_day.get(day_str, 0) + 1
-            
-            # Hour aggregation
-            hour_str = r.timestamp.strftime("%H:00")
-            by_hour[hour_str] = by_hour.get(hour_str, 0) + 1
-            
-            # Type aggregation from detections
+            # Convert stored timestamp to IST (assume UTC if naive)
+            ts = r.timestamp
+            if ts and ts.tzinfo is None:
+                ts = ts.replace(tzinfo=datetime.timezone.utc)
+            ts_ist = ts.astimezone(IST) if ts else None
+
+            if ts_ist:
+                day_str = ts_ist.strftime("%Y-%m-%d")
+                by_day[day_str] = by_day.get(day_str, 0) + 1
+
+                hour_str = ts_ist.strftime("%H:00")
+                by_hour[hour_str] = by_hour.get(hour_str, 0) + 1
+
             for d in r.detections:
                 if d.category and d.category != "safe":
                     by_type[d.category] = by_type.get(d.category, 0) + 1
 
-        # Format arrays for Recharts
-        by_hour_arr = [{"hour": k, "count": v} for k, v in sorted(by_hour.items())]
+        # Always return all 24 IST hours so the chart is never a single spike
+        by_hour_arr = [
+            {"hour": f"{h:02d}:00", "count": by_hour.get(f"{h:02d}:00", 0)}
+            for h in range(24)
+        ]
         by_day_arr = [{"date": k, "count": v} for k, v in sorted(by_day.items())]
         
         return {

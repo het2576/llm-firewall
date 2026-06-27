@@ -2,17 +2,25 @@
 
 import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Shield, MessageSquare, Loader2, RefreshCw } from 'lucide-react'
+import { Shield, MessageSquare, RefreshCw, ShieldAlert } from 'lucide-react'
 import { MetricsCards } from '../../components/dashboard/MetricsCards'
 import { ThreatChart } from '../../components/dashboard/ThreatChart'
 import { LogsTable } from '../../components/dashboard/LogsTable'
 import { getDashboard } from '../../services/api'
 import { AnalyticsData } from '../../types'
 
+const formatIST = (date: Date) =>
+  date.toLocaleTimeString('en-IN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Asia/Kolkata',
+  })
+
 export default function Dashboard() {
   const [data, setData] = useState<AnalyticsData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
 
   const fetchData = async () => {
     setIsLoading(true)
@@ -20,8 +28,8 @@ export default function Dashboard() {
     try {
       const result = await getDashboard()
       setData(result)
+      setLastUpdated(new Date())
     } catch (err: any) {
-      console.error('Failed to fetch dashboard data:', err)
       setError(err.message || 'Failed to load dashboard data')
     } finally {
       setIsLoading(false)
@@ -30,69 +38,167 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchData()
-    // Auto refresh every 30s
     const interval = setInterval(fetchData, 30000)
     return () => clearInterval(interval)
   }, [])
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100 font-sans p-4 md:p-8">
-      {/* Header */}
-      <header className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
-        <div className="flex items-center gap-3">
-          <div className="bg-blue-600/20 p-2.5 rounded-xl border border-blue-500/30">
-            <Shield className="w-6 h-6 text-blue-400" />
+    <div className="min-h-screen" style={{ background: '#000', color: '#ededed' }}>
+      {/* Vercel-style sticky navbar */}
+      <header
+        className="sticky top-0 z-20"
+        style={{
+          height: '60px',
+          borderBottom: '1px solid #1a1a1a',
+          background: 'rgba(0,0,0,0.85)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+        }}
+      >
+        <div
+          className="h-full flex items-center justify-between mx-auto"
+          style={{ maxWidth: 1280, padding: '0 24px' }}
+        >
+          {/* Left: logo + subtitle */}
+          <div className="flex items-center gap-3">
+            <div
+              className="flex items-center justify-center rounded-md"
+              style={{ width: 28, height: 28, background: '#0070f3', flexShrink: 0 }}
+            >
+              <Shield size={14} color="#fff" />
+            </div>
+            <div>
+              <p style={{ fontSize: 14, fontWeight: 600, color: '#ededed', letterSpacing: '-0.01em', lineHeight: 1.2 }}>
+                Security Dashboard
+              </p>
+              <p style={{ fontSize: 11, color: '#555', lineHeight: 1.2, marginTop: 1 }}>
+                {isLoading && !data
+                  ? 'Loading…'
+                  : lastUpdated
+                  ? `IST ${formatIST(lastUpdated)} · auto-refreshes`
+                  : 'Auto-refreshes every 30s'}
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold leading-tight text-white">Firewall Admin Dashboard</h1>
-            <p className="text-sm text-gray-400">Security metrics and threat intelligence</p>
+
+          {/* Right: actions */}
+          <div className="flex items-center" style={{ gap: 8 }}>
+            <button
+              onClick={fetchData}
+              disabled={isLoading}
+              className="flex items-center gap-1.5 transition-colors"
+              style={{
+                height: 32,
+                padding: '0 12px',
+                borderRadius: 6,
+                border: '1px solid #1a1a1a',
+                background: 'transparent',
+                color: isLoading ? '#333' : '#888',
+                fontSize: 13,
+                fontWeight: 500,
+                cursor: isLoading ? 'not-allowed' : 'pointer',
+              }}
+              onMouseEnter={(e) => {
+                if (!isLoading) {
+                  ;(e.currentTarget as HTMLButtonElement).style.borderColor = '#333'
+                  ;(e.currentTarget as HTMLButtonElement).style.color = '#ededed'
+                }
+              }}
+              onMouseLeave={(e) => {
+                ;(e.currentTarget as HTMLButtonElement).style.borderColor = '#1a1a1a'
+                ;(e.currentTarget as HTMLButtonElement).style.color = isLoading ? '#333' : '#888'
+              }}
+            >
+              <RefreshCw size={13} className={isLoading ? 'animate-spin' : ''} />
+              <span className="hidden sm:inline">Refresh</span>
+            </button>
+
+            <Link
+              href="/"
+              className="flex items-center gap-1.5 transition-colors"
+              style={{
+                height: 32,
+                padding: '0 12px',
+                borderRadius: 6,
+                border: '1px solid #0070f3',
+                background: '#0070f3',
+                color: '#fff',
+                fontSize: 13,
+                fontWeight: 500,
+                textDecoration: 'none',
+              }}
+              onMouseEnter={(e) => {
+                ;(e.currentTarget as HTMLAnchorElement).style.background = '#0060df'
+                ;(e.currentTarget as HTMLAnchorElement).style.borderColor = '#0060df'
+              }}
+              onMouseLeave={(e) => {
+                ;(e.currentTarget as HTMLAnchorElement).style.background = '#0070f3'
+                ;(e.currentTarget as HTMLAnchorElement).style.borderColor = '#0070f3'
+              }}
+            >
+              <MessageSquare size={13} />
+              <span className="hidden sm:inline">Back to Chat</span>
+            </Link>
           </div>
-        </div>
-        
-        <div className="flex items-center gap-3 w-full md:w-auto">
-          <button 
-            onClick={fetchData}
-            disabled={isLoading}
-            className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-900 hover:bg-gray-800 text-sm font-medium rounded-lg transition-colors border border-gray-700 disabled:opacity-50 flex-1 md:flex-none"
-          >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">Refresh</span>
-          </button>
-          
-          <Link 
-            href="/" 
-            className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg transition-colors flex-1 md:flex-none shadow-lg shadow-blue-900/20"
-          >
-            <MessageSquare className="w-4 h-4" />
-            <span>Go to Chat</span>
-          </Link>
         </div>
       </header>
 
       {/* Content */}
-      {isLoading && !data ? (
-        <div className="flex flex-col items-center justify-center h-64 text-gray-500 gap-3">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
-          <p>Loading security metrics...</p>
-        </div>
-      ) : error ? (
-        <div className="bg-red-950/30 border border-red-900/50 rounded-xl p-6 text-center">
-          <p className="text-red-400 font-medium mb-2">Error loading dashboard</p>
-          <p className="text-sm text-red-500/80">{error}</p>
-          <button 
-            onClick={fetchData}
-            className="mt-4 px-4 py-2 bg-red-900/50 hover:bg-red-900 text-red-200 text-sm rounded-lg transition-colors"
+      <main style={{ maxWidth: 1280, margin: '0 auto', padding: '28px 24px' }}>
+        {isLoading && !data ? (
+          <div className="flex flex-col items-center justify-center gap-4" style={{ height: 300 }}>
+            <div className="relative" style={{ width: 36, height: 36 }}>
+              <div
+                className="absolute inset-0 rounded-full"
+                style={{ border: '2px solid #1a1a1a' }}
+              />
+              <div
+                className="absolute inset-0 rounded-full animate-spin"
+                style={{ border: '2px solid #0070f3', borderTopColor: 'transparent' }}
+              />
+            </div>
+            <p style={{ fontSize: 13, color: '#555' }}>Loading security metrics…</p>
+          </div>
+        ) : error ? (
+          <div
+            className="flex flex-col items-center gap-4 text-center"
+            style={{
+              border: '1px solid #2a0a0a',
+              borderRadius: 12,
+              background: '#0a0000',
+              padding: '48px 32px',
+            }}
           >
-            Try Again
-          </button>
-        </div>
-      ) : data ? (
-        <div className="space-y-6 max-w-7xl mx-auto">
-          <MetricsCards data={data.summary} />
-          <ThreatChart data={data} />
-          <LogsTable logs={data.recent_blocked} />
-        </div>
-      ) : null}
+            <ShieldAlert size={36} color="#e00" />
+            <div>
+              <p style={{ fontSize: 14, fontWeight: 600, color: '#ff4444', marginBottom: 4 }}>
+                Failed to load dashboard
+              </p>
+              <p style={{ fontSize: 13, color: '#555' }}>{error}</p>
+            </div>
+            <button
+              onClick={fetchData}
+              style={{
+                padding: '8px 16px',
+                borderRadius: 6,
+                border: '1px solid #2a0a0a',
+                background: 'transparent',
+                color: '#ff6666',
+                fontSize: 13,
+                cursor: 'pointer',
+              }}
+            >
+              Try Again
+            </button>
+          </div>
+        ) : data ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+            <MetricsCards data={data.summary} />
+            <ThreatChart data={data} />
+            <LogsTable logs={data.recent_blocked} />
+          </div>
+        ) : null}
+      </main>
     </div>
   )
 }

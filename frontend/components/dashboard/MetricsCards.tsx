@@ -1,57 +1,62 @@
 import React from 'react'
-import { ShieldAlert, ShieldCheck, Filter, AlertTriangle } from 'lucide-react'
+import { ShieldAlert, ShieldCheck, Filter, AlertTriangle, Activity } from 'lucide-react'
 import { AnalyticsData } from '../../types'
 
 interface MetricsCardsProps {
   data: AnalyticsData['summary']
 }
 
-export const MetricsCards: React.FC<MetricsCardsProps> = ({ data }) => {
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 shadow-sm">
-        <div className="flex justify-between items-start mb-2">
-          <p className="text-gray-400 text-sm font-medium">Total Prompts</p>
-          <div className="p-2 bg-gray-800 rounded-lg"><Filter className="w-4 h-4 text-gray-400" /></div>
-        </div>
-        <h3 className="text-2xl font-bold text-white">{data.total}</h3>
-      </div>
-      
-      <div className="bg-gray-900 border border-green-900/50 rounded-xl p-5 shadow-sm">
-        <div className="flex justify-between items-start mb-2">
-          <p className="text-green-400/80 text-sm font-medium">Allowed</p>
-          <div className="p-2 bg-green-950/50 rounded-lg"><ShieldCheck className="w-4 h-4 text-green-500" /></div>
-        </div>
-        <h3 className="text-2xl font-bold text-white">{data.safe}</h3>
-      </div>
-      
-      <div className="bg-gray-900 border border-yellow-900/50 rounded-xl p-5 shadow-sm">
-        <div className="flex justify-between items-start mb-2">
-          <p className="text-yellow-400/80 text-sm font-medium">Warned</p>
-          <div className="p-2 bg-yellow-950/50 rounded-lg"><AlertTriangle className="w-4 h-4 text-yellow-500" /></div>
-        </div>
-        <h3 className="text-2xl font-bold text-white">{data.warned}</h3>
-      </div>
-      
-      <div className="bg-gray-900 border border-orange-900/50 rounded-xl p-5 shadow-sm">
-        <div className="flex justify-between items-start mb-2">
-          <p className="text-orange-400/80 text-sm font-medium">Sanitized</p>
-          <div className="p-2 bg-orange-950/50 rounded-lg"><Filter className="w-4 h-4 text-orange-500" /></div>
-        </div>
-        <h3 className="text-2xl font-bold text-white">{data.sanitized}</h3>
-      </div>
-      
-      <div className="bg-gray-900 border border-red-900/50 rounded-xl p-5 shadow-sm relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-24 h-24 bg-red-600/5 rounded-full blur-2xl -mr-8 -mt-8"></div>
-        <div className="flex justify-between items-start mb-2 relative z-10">
-          <p className="text-red-400/80 text-sm font-medium">Blocked</p>
-          <div className="p-2 bg-red-950/50 rounded-lg"><ShieldAlert className="w-4 h-4 text-red-500" /></div>
-        </div>
-        <div className="flex items-end gap-2 relative z-10">
-          <h3 className="text-2xl font-bold text-white">{data.blocked}</h3>
-          <span className="text-sm font-medium text-red-400 mb-1">({data.block_rate_percent}%)</span>
-        </div>
+interface CardProps {
+  label: string
+  value: number
+  icon: React.ElementType
+  iconColor: string
+  accentColor: string
+  subtitle?: string
+}
+
+const Card: React.FC<CardProps> = ({ label, value, icon: Icon, iconColor, accentColor, subtitle }) => (
+  <div
+    style={{
+      background: '#111111',
+      border: '1px solid #2a2a2a',
+      borderRadius: 12,
+      padding: '20px',
+    }}
+  >
+    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 18 }}>
+      <span style={{ fontSize: 12, color: '#888', fontWeight: 500, lineHeight: 1 }}>{label}</span>
+      <div
+        style={{
+          width: 30,
+          height: 30,
+          borderRadius: 8,
+          background: `${accentColor}15`,
+          border: `1px solid ${accentColor}25`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+        }}
+      >
+        <Icon size={14} color={iconColor} />
       </div>
     </div>
-  )
-}
+    <p style={{ fontSize: 30, fontWeight: 700, color: '#ededed', margin: 0, letterSpacing: '-0.03em', lineHeight: 1 }}>
+      {value.toLocaleString()}
+    </p>
+    {subtitle && (
+      <p style={{ fontSize: 11, color: accentColor, marginTop: 8, opacity: 0.7 }}>{subtitle}</p>
+    )}
+  </div>
+)
+
+export const MetricsCards: React.FC<MetricsCardsProps> = ({ data }) => (
+  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12 }}>
+    <Card label="Total Requests"  value={data.total}     icon={Activity}      iconColor="#aaa"     accentColor="#aaa"     subtitle="All intercepted" />
+    <Card label="Allowed"         value={data.safe}      icon={ShieldCheck}   iconColor="#22c55e"  accentColor="#22c55e"  subtitle="Clean requests" />
+    <Card label="Warned"          value={data.warned}    icon={AlertTriangle} iconColor="#f59e0b"  accentColor="#f59e0b"  subtitle="Flagged & passed" />
+    <Card label="Sanitized"       value={data.sanitized} icon={Filter}        iconColor="#f97316"  accentColor="#f97316"  subtitle="Modified before pass" />
+    <Card label="Blocked"         value={data.blocked}   icon={ShieldAlert}   iconColor="#ef4444"  accentColor="#ef4444"  subtitle={`${data.block_rate_percent}% block rate`} />
+  </div>
+)
